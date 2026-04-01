@@ -1,0 +1,69 @@
+name: Compile LaTeX CV
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # 缓存 TeX Live 安装目录
+      - name: Cache TeX Live
+        uses: actions/cache@v4
+        id: texlive-cache
+        with:
+          path: |
+            /usr/local/texlive
+            ~/.texlive
+          key: ${{ runner.os }}-texlive-2024-${{ hashFiles('**/*.tex') }}
+          restore-keys: |
+            ${{ runner.os }}-texlive-2024-
+            ${{ runner.os }}-texlive-
+      
+      # 仅在没有缓存时安装 TeX Live
+      - name: Install TeX Live
+        if: steps.texlive-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Installing TeX Live..."
+          sudo apt-get update
+          # 安装 texlive-full 包含所有需要的包
+          sudo apt-get install -y texlive-full pdf2djvu
+          echo "TeX Live installed successfully"
+      
+      # 如果缓存命中，确保在 PATH 中
+      - name: Setup TeX Live PATH
+        run: |
+          if [ -d "/usr/local/texlive/2024/bin/x86_64-linux" ]; then
+            echo "/usr/local/texlive/2024/bin/x86_64-linux" >> $GITHUB_PATH
+          elif [ -d "/usr/local/texlive/2023/bin/x86_64-linux" ]; then
+            echo "/usr/local/texlive/2023/bin/x86_64-linux" >> $GITHUB_PATH
+          fi
+      
+      - name: Compile LaTeX
+        run: |
+          pdflatex -interaction=nonstopmode -halt-on-error -file-line-error CV_Montel.tex
+      
+      - name: Convert to DJVU
+        run: |
+          pdf2djvu -d 1200 -o CV_Montel.djvu CV_Montel.pdf
+      
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CV_PDF
+          path: CV_Montel.pdf
+          retention-days: 30
+      
+      - name: Upload DJVU artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CV_DJVU
+          path: CV_Montel.djvu
+          retention-days: 30
